@@ -283,6 +283,20 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 except Exception:
                     pass
 
+        # Add Ollama local tokens to stats
+        ollama_log_path = os.path.join(OLLAMA_LOG_DIR, datetime.date.today().isoformat())
+        if os.path.isdir(ollama_log_path):
+            for fn in os.listdir(ollama_log_path):
+                if not fn.endswith(".json"):
+                    continue
+                try:
+                    with open(os.path.join(ollama_log_path, fn)) as f:
+                        odata = json.load(f)
+                    stats["ollama"]["tokens"] += odata.get("total_tokens", 0)
+                    stats["ollama"]["calls"] += 1
+                except Exception:
+                    pass
+
         return {
             "agents": stats,
             "crew": crew_status,
