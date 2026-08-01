@@ -1,0 +1,15 @@
+{
+  "buildCommand": null,
+  "outputDirectory": "dashboard",
+  "installCommand": null,
+  "framework": null,
+  "rewrites": [],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
+}
