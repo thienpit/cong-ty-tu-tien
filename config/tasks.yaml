@@ -1,0 +1,50 @@
+# Định nghĩa task mẫu — dây chuyền sản xuất
+# Task được nối nhau: output task trước = context task sau
+
+marketing_task:
+  description: >
+    Xây dựng kế hoạch marketing hoàn chỉnh cho: {mission}
+    Yêu cầu: mục tiêu đo lường được (KPI), 3-5 chiến thuật cụ thể,
+    phân chia kênh (SEO/social/ads/email), lịch triển khai 30 ngày.
+    Trả về văn bản có cấu trúc rõ ràng bằng tiếng Việt.
+  expected_output: >
+    Kế hoạch marketing chi tiết bằng tiếng Việt, có KPI, chiến thuật,
+    phân kênh và timeline 30 ngày.
+  agent: agent1
+
+data_task:
+  description: >
+    Dựa trên kế hoạch marketing sau đây, liệt kê các chỉ số (metrics)
+    cần theo dõi để đánh giá hiệu quả từng chiến thuật, cách thu thập
+    dữ liệu, và đề xuất 3 dashboard/report cần dựng:
+    {marketing_output}
+  expected_output: >
+    Danh sách metrics, cách đo, và đề xuất dashboard bằng tiếng Việt.
+  agent: agent2
+
+code_task:
+  description: >
+    Dựa trên danh sách metrics và dashboard đề xuất sau đây, viết code
+    Python (pandas/matplotlib) để dựng 1 trong các dashboard đó từ dữ liệu
+    mẫu tự sinh. Code phải chạy được, có comment tiếng Việt, tự tạo dữ liệu
+    mẫu nếu chưa có. Kiểm tra lỗi trước khi nộp:
+    {data_output}
+  expected_output: >
+    File Python hoàn chỉnh chạy được, kèm giải thích ngắn.
+  agent: agent2
+
+review_task:
+  description: >
+    Giám sát viên review toàn bộ dây chuyền sau đây:
+    --- KẾ HOẠCH MARKETING ---
+    {marketing_output}
+    --- PHÂN TÍCH DATA ---
+    {data_output}
+    --- CODE ---
+    {code_output}
+    Nhiệm vụ: tìm lỗi logic, số liệu vô lý, code hỏng, nội dung thiếu sót.
+    Với mỗi lỗi: chỉ rõ vị trí + đề xuất sửa. Nếu mọi thứ đạt yêu cầu,
+    kết luận 'ĐẠT' và tóm tắt 5 dòng.
+  expected_output: >
+    Báo cáo QA: danh sách lỗi (nếu có) kèm đề xuất sửa, hoặc kết luận ĐẠT.
+  agent: ollama

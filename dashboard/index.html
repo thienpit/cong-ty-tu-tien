@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Monitoring dashboard for Công Ty Tu Tiên multi-agent system">
+  <title>🏯 Công Ty Tu Tiên — Bảng Giám Sát</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js');
+    }
+  </script>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="header-title">🏯 Công Ty Tu Tiên — Bảng Giám Sát</h1>
+      <span class="header-subtitle">Hệ thống giám sát đa tác tử</span>
+    </div>
+    <div class="header-right">
+      <span class="connection-status" id="connection-status" title="Trạng thái kết nối">
+        <span class="status-dot status-dot--disconnected" id="connection-dot"></span>
+        <span id="connection-label">Đang kết nối...</span>
+      </span>
+      <span class="refresh-indicator" id="refresh-indicator">
+        <span class="refresh-icon">⟳</span>
+        <span id="refresh-countdown">5s</span>
+      </span>
+      <span class="last-update">Cập nhật lần cuối: <time id="last-update-time">--:--:--</time></span>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- Section 1: Agent Cards -->
+    <section class="section" aria-labelledby="agents-heading">
+      <h2 class="section-title" id="agents-heading">👥 Trạng Thái Các Tác Tử</h2>
+      <div class="agent-grid" id="agent-grid">
+
+        <!-- Hermes - Main brain -->
+        <article class="agent-card" id="agent-hermes" data-agent="hermes">
+          <div class="agent-icon">🤖</div>
+          <div class="agent-info">
+            <h3 class="agent-name">Hermes</h3>
+            <span class="agent-role">BỘ NÃO CHÍNH</span>
+            <div class="agent-status-line">
+              <span class="status-dot status-dot--idle" id="agent-hermes-status-dot"></span>
+              <span class="agent-status-text" id="agent-hermes-status">idle</span>
+            </div>
+            <span class="agent-last-active">Hoạt động cuối: <span id="agent-hermes-last-activity">--</span></span>
+          </div>
+          <div class="agent-token-bar">
+            <div class="token-bar-header">
+              <span class="token-label">Token</span>
+              <span class="token-count" id="agent-hermes-tokens">0</span>
+            </div>
+            <div class="token-bar-track">
+              <div class="token-bar-fill" id="agent-hermes-token-bar" style="width: 0%"></div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Agent 1 - Gemini cloud -->
+        <article class="agent-card" id="agent-agent1" data-agent="agent1">
+          <div class="agent-icon">🤖</div>
+          <div class="agent-info">
+            <h3 class="agent-name">Agent 1</h3>
+            <span class="agent-role">GEMINI CLOUD</span>
+            <div class="agent-status-line">
+              <span class="status-dot status-dot--idle" id="agent-agent1-status-dot"></span>
+              <span class="agent-status-text" id="agent-agent1-status">idle</span>
+            </div>
+            <span class="agent-last-active">Hoạt động cuối: <span id="agent-agent1-last-activity">--</span></span>
+          </div>
+          <div class="agent-token-bar">
+            <div class="token-bar-header">
+              <span class="token-label">Token</span>
+              <span class="token-count" id="agent-agent1-tokens">0</span>
+            </div>
+            <div class="token-bar-track">
+              <div class="token-bar-fill" id="agent-agent1-token-bar" style="width: 0%"></div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Agent 2 - Secondary cloud -->
+        <article class="agent-card" id="agent-agent2" data-agent="agent2">
+          <div class="agent-icon">🤖</div>
+          <div class="agent-info">
+            <h3 class="agent-name">Agent 2</h3>
+            <span class="agent-role">GEMINI CLOUD</span>
+            <div class="agent-status-line">
+              <span class="status-dot status-dot--idle" id="agent-agent2-status-dot"></span>
+              <span class="agent-status-text" id="agent-agent2-status">idle</span>
+            </div>
+            <span class="agent-last-active">Hoạt động cuối: <span id="agent-agent2-last-activity">--</span></span>
+          </div>
+          <div class="agent-token-bar">
+            <div class="token-bar-header">
+              <span class="token-label">Token</span>
+              <span class="token-count" id="agent-agent2-tokens">0</span>
+            </div>
+            <div class="token-bar-track">
+              <div class="token-bar-fill" id="agent-agent2-token-bar" style="width: 0%"></div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Ollama - Local AI -->
+        <article class="agent-card" id="agent-ollama" data-agent="ollama">
+          <div class="agent-icon">🤖</div>
+          <div class="agent-info">
+            <h3 class="agent-name">Ollama</h3>
+            <span class="agent-role">LOCAL AI</span>
+            <div class="agent-status-line">
+              <span class="status-dot status-dot--idle" id="agent-ollama-status-dot"></span>
+              <span class="agent-status-text" id="agent-ollama-status">idle</span>
+            </div>
+            <span class="agent-last-active">Hoạt động cuối: <span id="agent-ollama-last-activity">--</span></span>
+          </div>
+          <div class="agent-token-bar">
+            <div class="token-bar-header">
+              <span class="token-label">Token</span>
+              <span class="token-count" id="agent-ollama-tokens">0</span>
+            </div>
+            <div class="token-bar-track">
+              <div class="token-bar-fill" id="agent-ollama-token-bar" style="width: 0%"></div>
+            </div>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- Section 2: System Metrics -->
+    <section class="section" aria-labelledby="system-heading">
+      <h2 class="section-title" id="system-heading">⚙️ Hệ Thống</h2>
+      <div class="metrics-bar" id="metrics-bar">
+        <div class="metric-item">
+          <span class="metric-label">CPU</span>
+          <div class="metric-bar-track">
+            <div class="metric-bar-fill" id="cpu-bar" style="width: 0%"></div>
+          </div>
+          <span class="metric-value mono" id="cpu-value">0%</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">RAM</span>
+          <div class="metric-bar-track">
+            <div class="metric-bar-fill" id="ram-bar" style="width: 0%"></div>
+          </div>
+          <span class="metric-value mono" id="ram-value">0%</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">VRAM (Ollama)</span>
+          <div class="metric-bar-track">
+            <div class="metric-bar-fill" id="vram-bar" style="width: 0%"></div>
+          </div>
+          <span class="metric-value mono" id="vram-value">0%</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-label">Disk</span>
+          <div class="metric-bar-track">
+            <div class="metric-bar-fill" id="disk-bar" style="width: 0%"></div>
+          </div>
+          <span class="metric-value mono" id="disk-value">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Token Usage -->
+    <section class="section" aria-labelledby="tokens-heading">
+      <h2 class="section-title" id="tokens-heading">🪙 Sử Dụng Token</h2>
+      <div class="token-summary" id="token-summary">
+        <div class="token-total">
+          <span class="token-total-label">Tổng Token</span>
+          <span class="token-total-value mono" id="tokens-total">0</span>
+        </div>
+        <div class="token-breakdown" id="token-breakdown">
+          <div class="token-model-item">
+            <span class="token-model-name">Đang tải...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Recent API Calls -->
+    <section class="section" aria-labelledby="api-heading">
+      <h2 class="section-title" id="api-heading">📡 Gọi API Gần Đây</h2>
+      <div class="table-wrapper">
+        <table class="api-table" id="api-table">
+          <thead>
+            <tr>
+              <th scope="col">Thời Gian</th>
+              <th scope="col">Model</th>
+              <th scope="col">Trạng Thái</th>
+              <th scope="col">Thời Lượng</th>
+            </tr>
+          </thead>
+          <tbody id="api-table-body">
+            <tr class="table-empty">
+              <td colspan="4">Chưa có dữ liệu</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <span>🏯 Công Ty Tu Tiên — Giám Sát Hệ Thống Đa Tác Tử</span>
+  </footer>
+
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
