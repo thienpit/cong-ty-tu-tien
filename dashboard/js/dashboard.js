@@ -10,12 +10,16 @@
  * Configuration
  * ------------------------------------------------------------------------ */
 
+/* API base URL — auto-detect: localhost = local, otherwise use tunnel */
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = isLocal ? '' : 'https://spyware-photo-economic-creature.trycloudflare.com';
+
 const POLL_INTERVAL_MS = 5000; // 5 giây
 const API_ENDPOINTS = {
-  agents: '/api/agents',
-  system: '/api/system',
-  tokens: '/api/tokens',
-  crew:   '/api/crew',
+  agents: API_BASE + '/api/agents',
+  system: API_BASE + '/api/system',
+  tokens: API_BASE + '/api/tokens',
+  crew:   API_BASE + '/api/crew',
 };
 
 /* Map API keys / agent ids to display names + icons.

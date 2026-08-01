@@ -1,0 +1,27 @@
+{
+  "name": "cong-ty-tu-tien",
+  "version": "1.0.0",
+  "description": "Công Ty Tu Tiên - Hệ thống giám sát đa tác tử",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win",
+    "build-android": "cap sync && cap open android"
+  },
+  "build": {
+    "appId": "com.congtytutien.dashboard",
+    "productName": "Công Ty Tu Tiên",
+    "win": {
+      "target": "nsis",
+      "icon": "../dashboard/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}
