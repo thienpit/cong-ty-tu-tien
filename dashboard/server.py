@@ -52,6 +52,11 @@ def agent_for(log_data):
     return "hermes"  # Default to hermes for auto-routed calls
 
 
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
@@ -69,6 +74,10 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             return False
 
     def require_auth(self):
+        # Skip auth for localhost (Electron app, local browser)
+        client = self.client_address[0] if self.client_address else ""
+        if client in ("127.0.0.1", "::1", "localhost"):
+            return True
         if not self.check_auth():
             self.send_response(401)
             self.send_header("WWW-Authenticate", 'Basic realm="Dashboard"')
@@ -362,7 +371,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 # ── Main ────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     os.chdir(DIRECTORY)
-    with socketserver.TCPServer(("0.0.0.0", PORT), DashboardHandler) as httpd:
+    with ThreadedHTTPServer(("0.0.0.0", PORT), DashboardHandler) as httpd:
         httpd.allow_reuse_address = True
         print(f"🏯 Dashboard running at http://0.0.0.0:{PORT}")
         httpd.serve_forever()
