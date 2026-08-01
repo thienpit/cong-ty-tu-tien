@@ -58,6 +58,14 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
+    def _handle_request_noblock(self):
+        try:
+            super()._handle_request_noblock()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+            pass
+        except Exception:
+            pass
+
     def handle_error(self, request, client_address):
         import traceback, sys
         exc = sys.exc_info()[1]
@@ -294,6 +302,17 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         odata = json.load(f)
                     stats["ollama"]["tokens"] += odata.get("total_tokens", 0)
                     stats["ollama"]["calls"] += 1
+                    # Track last active time
+                    ts = odata.get("timestamp", "")
+                    if ts:
+                        try:
+                            dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                            epoch = dt.timestamp()
+                            if crew_status["ollama"]["last_active"] is None or epoch > crew_status["ollama"]["last_active"]:
+                                crew_status["ollama"]["last_active"] = epoch
+                                crew_status["ollama"]["status"] = "active"
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
@@ -497,4 +516,12 @@ if __name__ == "__main__":
     with ThreadedHTTPServer(("0.0.0.0", PORT), DashboardHandler) as httpd:
         httpd.allow_reuse_address = True
         print(f"🏯 Dashboard running at http://0.0.0.0:{PORT}")
-        httpd.serve_forever()
+        while True:
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("Shutting down...")
+                break
+            except Exception as e:
+                print(f"⚠️ Server error: {e} — restarting in 2s...")
+                time.sleep(2)
