@@ -17,6 +17,8 @@ AUTH_PASS = "thienlun1603"
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
 AGENTS = ["hermes", "agent1", "agent2", "ollama"]
+OLLAMA_URL = "http://localhost:11434"
+OLLAMA_LOG_DIR = os.path.join(os.path.expanduser("~"), ".hermes", "logs", "ollama_calls")
 
 # OmniRoute connectionId → agent mapping (populated from logs)
 # "noauth" = Hermes (default connection, uses free models)
@@ -56,6 +58,15 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
+    def handle_error(self, request, client_address):
+        import traceback, sys
+        exc = sys.exc_info()[1]
+        # Silently ignore client disconnect errors
+        if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError)):
+            return
+        # Log other errors
+        print(f"[ERROR] {client_address}: {exc}")
+
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
@@ -93,6 +104,85 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         super().end_headers()
+
+    # ── Ollama proxy ─────────────────────────────────────────────────────────
+    def today_ollama_logs(self):
+        today = datetime.date.today().isoformat()
+        d = os.path.join(OLLAMA_LOG_DIR, today)
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def log_ollama_call(self, model, prompt_tokens, completion_tokens, duration_ms):
+        """Log an Ollama call for dashboard display."""
+        import uuid
+        log = {
+            "id": str(uuid.uuid4()),
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+            "duration_ms": duration_ms,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "source": "ollama_local",
+        }
+        log_path = self.today_ollama_logs()
+        fn = os.path.join(log_path, f"{uuid.uuid4().hex[:8]}.json")
+        with open(fn, "w") as f:
+            json.dump(log, f)
+
+    def proxy_ollama(self, ollama_path):
+        """Proxy request to Ollama and log token usage."""
+        import urllib.request as ur
+        import time
+
+        body = None
+        if self.command == "POST":
+            length = int(self.headers.get("Content-Length", 0))
+            if length > 0:
+                body = self.rfile.read(length)
+
+        url = f"{OLLAMA_URL}{ollama_path}"
+        req = ur.Request(url, data=body, method=self.command)
+        req.add_header("Content-Type", "application/json")
+
+        start = time.time()
+        try:
+            resp = ur.urlopen(req, timeout=300)
+            resp_body = resp.read()
+            duration_ms = int((time.time() - start) * 1000)
+
+            # Try to extract token info from response
+            try:
+                data = json.loads(resp_body)
+                model = data.get("model", "unknown")
+                prompt_n = data.get("prompt_eval_count", 0)
+                compl_n = data.get("eval_count", 0)
+                if prompt_n > 0 or compl_n > 0:
+                    self.log_ollama_call(model, prompt_n, compl_n, duration_ms)
+            except Exception:
+                pass
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(resp_body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(resp_body)
+        except Exception as e:
+            error_body = json.dumps({"error": str(e)}).encode()
+            self.send_response(502)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(error_body)))
+            self.end_headers()
+            self.wfile.write(error_body)
+
+    def do_POST(self):
+        path = self.path.split("?")[0]
+        if path.startswith("/ollama/"):
+            ollama_path = path[len("/ollama"):]  # /api/chat -> /api/chat
+            self.proxy_ollama(ollama_path)
+        else:
+            self.send_error(404)
 
     # ── Routing ─────────────────────────────────────────────────────────────
     def do_OPTIONS(self):
@@ -132,13 +222,16 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"error": str(e)}, 500)
 
     def send_json(self, data, status=200):
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Connection", "close")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+            pass
 
     # ── API: /api/agents ────────────────────────────────────────────────────
     def api_agents(self):
@@ -265,6 +358,22 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     total += t
                 except Exception:
                     pass
+
+        # Count Ollama local tokens
+        ollama_path = os.path.join(OLLAMA_LOG_DIR, datetime.date.today().isoformat())
+        ollama_tokens = 0
+        if os.path.isdir(ollama_path):
+            for fn in os.listdir(ollama_path):
+                if not fn.endswith(".json"):
+                    continue
+                try:
+                    with open(os.path.join(ollama_path, fn)) as f:
+                        data = json.load(f)
+                    ollama_tokens += data.get("total_tokens", 0)
+                except Exception:
+                    pass
+        by_agent["ollama"] = ollama_tokens
+        total += ollama_tokens
 
         return {
             "total_tokens": total,
