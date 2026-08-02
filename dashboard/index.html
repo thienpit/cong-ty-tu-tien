@@ -175,6 +175,18 @@
     <!-- Section 3: Token Usage -->
     <section class="section" aria-labelledby="tokens-heading">
       <h2 class="section-title" id="tokens-heading">🪙 Sử Dụng Token</h2>
+      
+      <!-- Filter -->
+      <div class="token-filter" style="margin-bottom: 15px;">
+        <button onclick="updateTokenRange('1h')" id="btn-1h">1h</button>
+        <button onclick="updateTokenRange('2h')" id="btn-2h">2h</button>
+        <button onclick="updateTokenRange('3h')" id="btn-3h">3h</button>
+        <button onclick="updateTokenRange('1d')" id="btn-1d" class="active">1d</button>
+        <button onclick="updateTokenRange('3d')" id="btn-3d">3d</button>
+        <button onclick="updateTokenRange('7d')" id="btn-7d">7d</button>
+        <button onclick="updateTokenRange('30d')" id="btn-30d">30d</button>
+      </div>
+
       <div class="token-summary" id="token-summary">
         <div class="token-total">
           <span class="token-total-label">Tổng Token</span>

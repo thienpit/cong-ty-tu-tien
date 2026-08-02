@@ -54,6 +54,13 @@ def agent_for(log_data):
     return "hermes"  # Default to hermes for auto-routed calls
 
 
+# Time range presets (hours)
+RANGE_MAP = {
+    "1h": 1, "2h": 2, "3h": 3,
+    "1d": 24, "3d": 72,
+    "7d": 168, "30d": 720,
+}
+
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
     daemon_threads = True
@@ -78,6 +85,17 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
+    def parse_range(self):
+        """Parse ?range=1h from query string. Returns (start_epoch, label)."""
+        from urllib.parse import urlparse, parse_qs
+        qs = parse_qs(urlparse(self.path).query)
+        rng = qs.get("range", ["1d"])[0]
+        if rng and rng in RANGE_MAP:
+            hours = RANGE_MAP[rng]
+            since = datetime.datetime.now() - datetime.timedelta(hours=hours)
+            return since.timestamp(), rng
+        return 0, "all"
+
     def log_message(self, fmt, *args):
         pass
 
@@ -93,9 +111,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             return False
 
     def require_auth(self):
-        # Skip auth for localhost (Electron app, local browser)
+        # Skip auth for localhost (Electron/local) and Tailscale (100.x.x.x)
         client = self.client_address[0] if self.client_address else ""
-        if client in ("127.0.0.1", "::1", "localhost"):
+        if client in ("127.0.0.1", "::1", "localhost") or client.startswith("100."):
             return True
         if not self.check_auth():
             self.send_response(401)
@@ -367,44 +385,79 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     # ── API: /api/tokens ────────────────────────────────────────────────────
     def api_tokens(self):
-        log_path = self.today_logs()
+        since_epoch, range_label = self.parse_range()
         by_agent = {a: 0 for a in AGENTS}
         by_model = {}
         total = 0
 
-        if os.path.isdir(log_path):
-            for fn in os.listdir(log_path):
-                if not fn.endswith(".json"):
+        # Scan OmniRoute logs across multiple days
+        base_log = os.path.expanduser("~/.omniroute/call_logs/")
+        if os.path.isdir(base_log):
+            for day_dir in sorted(os.listdir(base_log), reverse=True):
+                if not os.path.isdir(os.path.join(base_log, day_dir)):
                     continue
-                try:
-                    data = self._load_log(log_path, fn)
-                    if not data:
+                for fn in os.listdir(os.path.join(base_log, day_dir)):
+                    if not fn.endswith(".json"):
                         continue
-                    tk = (data.get("summary") or {}).get("tokens") or {}
-                    t = tk.get("in", 0) + tk.get("out", 0)
-                    if t <= 0:
-                        continue
-                    model = (data.get("requestBody") or {}).get("model", "unknown")
-                    a = agent_for(data)
-                    by_agent[a] += t
-                    by_model[model] = by_model.get(model, 0) + t
-                    total += t
-                except Exception:
-                    pass
+                    try:
+                        data = self._load_log(os.path.join(base_log, day_dir), fn)
+                        if not data:
+                            continue
+                        # Time filter
+                        if since_epoch > 0:
+                            ts_str = (data.get("summary") or {}).get("timestamp", "")
+                            if ts_str:
+                                # Handle both naive and aware timestamps
+                                if "+" in ts_str or ts_str.endswith("Z"):
+                                    dt = datetime.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                                    # Convert to naive local time for comparison
+                                    if dt.tzinfo: dt = dt.replace(tzinfo=None)
+                                else:
+                                    dt = datetime.datetime.fromisoformat(ts_str)
+                                
+                                if dt.timestamp() < since_epoch:
+                                    continue
+                        
+                        tk = (data.get("summary") or {}).get("tokens") or {}
+                        t = tk.get("in", 0) + tk.get("out", 0)
+                        if t <= 0:
+                            continue
+                        model = (data.get("requestBody") or {}).get("model", "unknown")
+                        a = agent_for(data)
+                        by_agent[a] += t
+                        by_model[model] = by_model.get(model, 0) + t
+                        total += t
+                    except Exception:
+                        pass
 
-        # Count Ollama local tokens
-        ollama_path = os.path.join(OLLAMA_LOG_DIR, datetime.date.today().isoformat())
+        # Scan Ollama logs across multiple days
         ollama_tokens = 0
-        if os.path.isdir(ollama_path):
-            for fn in os.listdir(ollama_path):
-                if not fn.endswith(".json"):
+        if os.path.isdir(OLLAMA_LOG_DIR):
+            for day_dir in sorted(os.listdir(OLLAMA_LOG_DIR), reverse=True):
+                day_path = os.path.join(OLLAMA_LOG_DIR, day_dir)
+                if not os.path.isdir(day_path):
                     continue
-                try:
-                    with open(os.path.join(ollama_path, fn)) as f:
-                        data = json.load(f)
-                    ollama_tokens += data.get("total_tokens", 0)
-                except Exception:
-                    pass
+                for fn in os.listdir(day_path):
+                    if not fn.endswith(".json"):
+                        continue
+                    try:
+                        with open(os.path.join(day_path, fn)) as f:
+                            odata = json.load(f)
+                        # Time filter
+                        if since_epoch > 0:
+                            ts = odata.get("timestamp", "")
+                            if ts:
+                                if "+" in ts or ts.endswith("Z"):
+                                    dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                                    if dt.tzinfo: dt = dt.replace(tzinfo=None)
+                                else:
+                                    dt = datetime.datetime.fromisoformat(ts)
+                                    
+                                if dt.timestamp() < since_epoch:
+                                    continue
+                        ollama_tokens += odata.get("total_tokens", 0)
+                    except Exception:
+                        pass
         by_agent["ollama"] = ollama_tokens
         total += ollama_tokens
 
@@ -412,6 +465,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             "total_tokens": total,
             "by_agent": by_agent,
             "by_model": by_model,
+            "range": range_label,
         }
 
     # ── API: /api/crew ──────────────────────────────────────────────────────

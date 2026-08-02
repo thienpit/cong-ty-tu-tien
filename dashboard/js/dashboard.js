@@ -72,6 +72,21 @@ const AGENT_IDS = ['hermes', 'agent1', 'agent2', 'ollama'];
 let refreshTimer = null;
 let refreshCountdown = POLL_INTERVAL_MS / 1000;
 
+// Token time range filter
+let currentTokenRange = '1d'; // default: today
+
+function updateTokenRange(range) {
+  currentTokenRange = range;
+  // Update active button styling using IDs
+  document.querySelectorAll('.token-filter button').forEach(btn => {
+    btn.classList.toggle('active', btn.id === `btn-${range}`);
+  });
+  // Re-fetch tokens immediately
+  fetchJson(API_ENDPOINTS.tokens + '?range=' + range)
+    .then(renderTokens)
+    .catch(() => {});
+}
+
 /* --------------------------------------------------------------------------
  * Utilities
  * ------------------------------------------------------------------------ */
@@ -533,7 +548,7 @@ async function pollAll() {
   const results = await Promise.allSettled([
     fetchJson(API_ENDPOINTS.agents),
     fetchJson(API_ENDPOINTS.system),
-    fetchJson(API_ENDPOINTS.tokens),
+    fetchJson(API_ENDPOINTS.tokens + '?range=' + currentTokenRange),
     fetchJson(API_ENDPOINTS.crew),
   ]);
 

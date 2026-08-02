@@ -671,7 +671,31 @@ body {
   }
 }
 
-/* Respect reduced-motion preferences */
+/* Token filter buttons */
+.token-filter button {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 5px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  margin-right: 5px;
+}
+
+.token-filter button:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-strong);
+}
+
+.token-filter button.active {
+  background: var(--primary-dim);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
